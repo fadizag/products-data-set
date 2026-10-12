@@ -131,8 +131,8 @@ class _ProductTile extends StatelessWidget {
       _ProductImage(data: product.images.isEmpty ? null : product.images.first), const SizedBox(width: 12),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(product.nameAr, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
-        if (product.barcode.isNotEmpty) ...[const SizedBox(height: 5), Text('الباركود: \${product.barcode}', textDirection: TextDirection.ltr)],
-        if (product.images.length > 1) ...[const SizedBox(height: 5), Text('عدد الصور: \${product.images.length}')],
+        if (product.barcode.isNotEmpty) ...[const SizedBox(height: 5), Text('الباركود: ${product.barcode}', textDirection: TextDirection.ltr)],
+        if (product.images.length > 1) ...[const SizedBox(height: 5), Text('عدد الصور: ${product.images.length}')],
       ])),
       PopupMenuButton<String>(tooltip: 'إجراءات المنتج', onSelected: (v) { if (v == 'edit') onEdit(); if (v == 'archive') onArchive(); },
         itemBuilder: (_) => [const PopupMenuItem(value: 'edit', child: Text('تعديل')), PopupMenuItem(value: 'archive', child: Text(product.archived ? 'استعادة' : 'أرشفة'))]),
@@ -175,7 +175,7 @@ class _ProductDialogState extends State<_ProductDialog> {
   Widget build(BuildContext context) => Directionality(textDirection: TextDirection.rtl, child: AlertDialog(
     title: Text(widget.product == null ? 'إضافة منتج' : 'تعديل المنتج'),
     content: SizedBox(width: 520, child: SingleChildScrollView(child: Form(key: _formKey, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      OutlinedButton.icon(onPressed: _picking ? null : _pickImages, icon: const Icon(Icons.add_photo_alternate_outlined), label: Text(_picking ? 'جارٍ تجهيز الصور...' : (_images.isEmpty ? 'إضافة صورة أو عدة صور' : 'إضافة صور أخرى (\${_images.length})'))),
+      OutlinedButton.icon(onPressed: _picking ? null : _pickImages, icon: const Icon(Icons.add_photo_alternate_outlined), label: Text(_picking ? 'جارٍ تجهيز الصور...' : (_images.isEmpty ? 'إضافة صورة أو عدة صور' : 'إضافة صور أخرى (${_images.length})'))),
       if (_images.isNotEmpty) ...[const SizedBox(height: 12), SizedBox(height: 92, child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: _images.length, separatorBuilder: (_, __) => const SizedBox(width: 8), itemBuilder: (context, i) => Stack(children: [
         ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.memory(base64Decode(_images[i]), width: 88, height: 88, fit: BoxFit.cover)),
         Positioned(top: 2, left: 2, child: InkWell(onTap: () => setState(() => _images.removeAt(i)), child: Container(decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle), padding: const EdgeInsets.all(3), child: const Icon(Icons.close, size: 16, color: Colors.white)))),
