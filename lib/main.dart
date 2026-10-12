@@ -46,7 +46,7 @@ class CatalogHomePage extends StatefulWidget {
 class _CatalogHomePageState extends State<CatalogHomePage> {
   final _search = TextEditingController();
   List<ProductRecord> _products = [];
-  bool _archived = false, _loading = true;
+  bool _loading = true;
   @override
   void initState() { super.initState(); _load(); _search.addListener(() { if (mounted) setState(() {}); }); }
   @override
@@ -64,7 +64,7 @@ class _CatalogHomePageState extends State<CatalogHomePage> {
   }
   List<ProductRecord> get _visible {
     final q = _search.text.trim().toLowerCase();
-    return _products.where((p) => p.archived == _archived && (q.isEmpty || p.nameAr.toLowerCase().contains(q) || p.barcode.toLowerCase().contains(q))).toList()..sort((a,b) => b.updatedAt.compareTo(a.updatedAt));
+    return _products.where((p) => q.isEmpty || p.nameAr.toLowerCase().contains(q) || p.barcode.toLowerCase().contains(q)).toList()..sort((a,b) => b.updatedAt.compareTo(a.updatedAt));
   }
   Future<void> _edit({ProductRecord? old}) async {
     final result = await showDialog<ProductRecord>(context: context, builder: (_) => _ProductDialog(product: old));
@@ -82,24 +82,36 @@ class _CatalogHomePageState extends State<CatalogHomePage> {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذّر الحفظ؛ جرّب صورًا أقل أو أصغر.')));
     }
   }
-  Future<void> _archive(ProductRecord p) async {
-    setState(() { final i = _products.indexWhere((x) => x.id == p.id); if (i >= 0) _products[i] = p.copyWith(archived: !p.archived); });
-    try { await _save(); } catch (_) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذّر حفظ التغيير.'))); }
+  Future<void> _deleteProduct(ProductRecord product) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('حذف المنتج؟'),
+        content: Text('هل تريد حذف «${product.nameAr}» نهائيًا؟'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('حذف')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final previous = List<ProductRecord>.from(_products);
+    setState(() => _products.removeWhere((p) => p.id == product.id));
+    try {
+      await _save();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حذف المنتج.')));
+    } catch (_) {
+      if (mounted) setState(() => _products = previous);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذّر حفظ الحذف.')));
+    }
   }
-  Future<void> _backup() async {
-    final value = const JsonEncoder.withIndent('  ').convert(_products.map((p) => p.toJson()).toList());
-    await showDialog<void>(context: context, builder: (ctx) => AlertDialog(title: const Text('بيانات المنتجات JSON'), content: SizedBox(width: 560, child: SingleChildScrollView(child: SelectableText(value))), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق'))]));
-  }
+
   @override
   Widget build(BuildContext context) {
-    final items = _visible, count = _products.where((p) => p.archived == _archived).length;
+    final items = _visible, count = _products.length;
     return Directionality(textDirection: TextDirection.rtl, child: Scaffold(
-      appBar: AppBar(title: const Text('دليل المنتجات'), actions: [
-        IconButton(tooltip: 'عرض JSON', onPressed: _backup, icon: const Icon(Icons.data_object_rounded)),
-        PopupMenuButton<String>(tooltip: 'خيارات', onSelected: (v) => setState(() => _archived = v == 'archived' ? !_archived : _archived),
-          itemBuilder: (_) => [PopupMenuItem(value: 'archived', child: Text(_archived ? 'عرض المنتجات النشطة' : 'عرض الأرشيف'))], icon: const Icon(Icons.tune_rounded)),
-      ]),
-      floatingActionButton: FloatingActionButton.extended(onPressed: () => _edit(), icon: const Icon(Icons.add_rounded), label: const Text('إضافة منتج')),
+      appBar: AppBar(title: const Text('دليل المنتجات')),
+      floatingActionButton: FloatingActionButton(onPressed: () => _edit(), tooltip: 'إضافة منتج', child: const Icon(Icons.add_rounded, size: 32)),
       body: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 850), child: _loading ? const Center(child: CircularProgressIndicator()) : ListView(padding: const EdgeInsets.fromLTRB(18,10,18,100), children: [
         Text('قاعدة بيانات المنتجات', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
@@ -107,14 +119,14 @@ class _CatalogHomePageState extends State<CatalogHomePage> {
         const SizedBox(height: 20),
         TextField(controller: _search, textInputAction: TextInputAction.search, decoration: InputDecoration(hintText: 'ابحث باسم المنتج أو الباركود', prefixIcon: const Icon(Icons.search_rounded), suffixIcon: _search.text.isEmpty ? const Icon(Icons.qr_code_rounded) : IconButton(onPressed: _search.clear, icon: const Icon(Icons.close_rounded)))),
         const SizedBox(height: 14),
-        Row(children: [Expanded(child: Text(_archived ? 'الأرشيف' : 'المنتجات', style: Theme.of(context).textTheme.titleMedium)), Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9), decoration: BoxDecoration(color: const Color(0xFFE8EDDF), borderRadius: BorderRadius.circular(14)), child: Text('$count منتج'))]),
+        Row(children: [Expanded(child: Text('المنتجات', style: Theme.of(context).textTheme.titleMedium)), Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9), decoration: BoxDecoration(color: const Color(0xFFE8EDDF), borderRadius: BorderRadius.circular(14)), child: Text('$count منتج'))]),
         const SizedBox(height: 12),
         if (items.isEmpty) Card(elevation: 0, color: const Color(0xFFE8EDDF), child: Padding(padding: const EdgeInsets.all(24), child: Column(children: [
           const Icon(Icons.inventory_2_outlined, size: 42, color: Color(0xFF596B45)), const SizedBox(height: 12),
-          Text(_search.text.isNotEmpty ? 'ما لقينا منتجات مطابقة' : (_archived ? 'الأرشيف فارغ' : 'لسّه ما أضفت منتجات'), style: Theme.of(context).textTheme.titleLarge, textAlign: TextAlign.center),
+          Text(_search.text.isNotEmpty ? 'ما لقينا منتجات مطابقة' : 'لسّه ما أضفت منتجات', style: Theme.of(context).textTheme.titleLarge, textAlign: TextAlign.center),
           const SizedBox(height: 8), Text(_search.text.isNotEmpty ? 'جرّب اسمًا آخر أو امسح البحث.' : 'اضغط «إضافة منتج» لتسجيل أول منتج.', textAlign: TextAlign.center),
-          if (!_archived && _search.text.isEmpty) ...[const SizedBox(height: 14), FilledButton.icon(onPressed: () => _edit(), icon: const Icon(Icons.add), label: const Text('إضافة أول منتج'))],
-        ]))) else ...items.map((p) => _ProductTile(product: p, onEdit: () => _edit(old: p), onArchive: () => _archive(p))),
+          if (_search.text.isEmpty) ...[const SizedBox(height: 14), FilledButton.icon(onPressed: () => _edit(), icon: const Icon(Icons.add), label: const Text('إضافة أول منتج'))],
+        ]))) else ...items.map((p) => _ProductTile(product: p, onEdit: () => _edit(old: p), onDelete: () => _deleteProduct(p))),
         const SizedBox(height: 14),
         Text('الحفظ محلي في هذا المتصفح أو الجهاز؛ لم تتم إضافة المزامنة السحابية بعد.', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.black54), textAlign: TextAlign.center),
       ]))),
@@ -123,8 +135,8 @@ class _CatalogHomePageState extends State<CatalogHomePage> {
 }
 
 class _ProductTile extends StatelessWidget {
-  const _ProductTile({required this.product, required this.onEdit, required this.onArchive});
-  final ProductRecord product; final VoidCallback onEdit, onArchive;
+  const _ProductTile({required this.product, required this.onEdit, required this.onDelete});
+  final ProductRecord product; final VoidCallback onEdit, onDelete;
   @override
   Widget build(BuildContext context) => Card(elevation: 0, color: Colors.white, margin: const EdgeInsets.only(bottom: 10), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
     child: Padding(padding: const EdgeInsets.all(12), child: Row(children: [
@@ -134,8 +146,8 @@ class _ProductTile extends StatelessWidget {
         if (product.barcode.isNotEmpty) ...[const SizedBox(height: 5), Text('الباركود: ${product.barcode}', textDirection: TextDirection.ltr)],
         if (product.images.length > 1) ...[const SizedBox(height: 5), Text('عدد الصور: ${product.images.length}')],
       ])),
-      PopupMenuButton<String>(tooltip: 'إجراءات المنتج', onSelected: (v) { if (v == 'edit') onEdit(); if (v == 'archive') onArchive(); },
-        itemBuilder: (_) => [const PopupMenuItem(value: 'edit', child: Text('تعديل')), PopupMenuItem(value: 'archive', child: Text(product.archived ? 'استعادة' : 'أرشفة'))]),
+      PopupMenuButton<String>(tooltip: 'إجراءات المنتج', onSelected: (v) { if (v == 'edit') onEdit(); if (v == 'delete') onDelete(); },
+        itemBuilder: (_) => const [PopupMenuItem(value: 'edit', child: Text('تعديل')), PopupMenuItem(value: 'delete', child: Text('حذف'))]),
     ])));
 }
 
