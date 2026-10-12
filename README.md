@@ -2,6 +2,16 @@
 
 A Flutter application for building a structured, reusable product dataset, starting with Palestinian products and designed to expand internationally.
 
+## Open the web preview
+
+The Flutter Web preview is published through GitHub Pages after the **Flutter Web Preview** workflow completes:
+
+**Preview:** https://fadizag.github.io/products-data-set/
+
+**Build/deployment status:** https://github.com/fadizag/products-data-set/actions/workflows/pages.yml
+
+The preview is rebuilt automatically whenever changes are pushed to `main`. The first deployment may take a few minutes.
+
 ## Approved MVP decisions
 
 - **Platforms:** Android, Windows, and Web.
@@ -34,4 +44,4 @@ The initial specification and application shell are committed. The current UI is
 
 ## Verification status
 
-CI workflow has been added, but it has not yet been observed running successfully. No claim of successful Flutter builds, generated database code, cloud connectivity, or deployment is made until those steps are executed and verified.
+The web preview workflow has been added. Check the Actions link above for the build and deployment result. The starter screen is not a finished product: persistence, real search, import/export, and cloud sync are not implemented yet.
