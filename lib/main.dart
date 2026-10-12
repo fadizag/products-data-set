@@ -1,77 +1,41 @@
 import 'dart:convert';
-
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
-void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  runApp(const ProductsDatasetApp());
-}
-
-const _storageKey = 'products_dataset.records.v1';
+void main() { WidgetsFlutterBinding.ensureInitialized(); runApp(const ProductsDatasetApp()); }
+const _storageKey = 'products_dataset.records.v2';
 const _uuid = Uuid();
-const _categories = <String>['مواد غذائية', 'مشروبات', 'ألبان وأجبان', 'منظفات', 'عناية شخصية', 'أخرى'];
 
 class ProductRecord {
-  const ProductRecord({
-    required this.id, required this.nameAr, required this.category,
-    required this.createdAt, required this.updatedAt,
-    this.nameEn = '', this.brand = '', this.barcode = '', this.origin = '',
-    this.description = '', this.archived = false,
-  });
-  final String id, nameAr, nameEn, category, brand, barcode, origin, description;
-  final bool archived;
+  const ProductRecord({required this.id, required this.nameAr, required this.barcode, required this.images, required this.createdAt, required this.updatedAt, this.archived = false});
+  final String id, nameAr, barcode;
+  final List<String> images;
   final DateTime createdAt, updatedAt;
-
-  Map<String, dynamic> toJson() => {
-    'id': id, 'nameAr': nameAr, 'nameEn': nameEn, 'category': category,
-    'brand': brand, 'barcode': barcode, 'origin': origin,
-    'description': description, 'archived': archived,
-    'createdAt': createdAt.toUtc().toIso8601String(),
-    'updatedAt': updatedAt.toUtc().toIso8601String(), 'schemaVersion': 1,
-  };
-
+  final bool archived;
+  Map<String, dynamic> toJson() => {'id': id, 'nameAr': nameAr, 'barcode': barcode, 'images': images, 'archived': archived, 'createdAt': createdAt.toUtc().toIso8601String(), 'updatedAt': updatedAt.toUtc().toIso8601String(), 'schemaVersion': 2};
   factory ProductRecord.fromJson(Map<String, dynamic> j) => ProductRecord(
-    id: j['id'] as String, nameAr: j['nameAr'] as String? ?? '',
-    nameEn: j['nameEn'] as String? ?? '', category: j['category'] as String? ?? 'أخرى',
-    brand: j['brand'] as String? ?? '', barcode: j['barcode'] as String? ?? '',
-    origin: j['origin'] as String? ?? '', description: j['description'] as String? ?? '',
+    id: j['id'] as String? ?? _uuid.v4(), nameAr: j['nameAr'] as String? ?? '', barcode: j['barcode'] as String? ?? '',
+    images: (j['images'] as List<dynamic>? ?? const []).whereType<String>().toList(),
     archived: j['archived'] as bool? ?? false,
     createdAt: DateTime.tryParse(j['createdAt'] as String? ?? '') ?? DateTime.now().toUtc(),
-    updatedAt: DateTime.tryParse(j['updatedAt'] as String? ?? '') ?? DateTime.now().toUtc(),
-  );
-
-  ProductRecord copyWith({bool? archived}) => ProductRecord(
-    id: id, nameAr: nameAr, nameEn: nameEn, category: category, brand: brand,
-    barcode: barcode, origin: origin, description: description,
-    archived: archived ?? this.archived, createdAt: createdAt, updatedAt: DateTime.now().toUtc(),
-  );
+    updatedAt: DateTime.tryParse(j['updatedAt'] as String? ?? '') ?? DateTime.now().toUtc());
+  ProductRecord copyWith({bool? archived}) => ProductRecord(id: id, nameAr: nameAr, barcode: barcode, images: images, archived: archived ?? this.archived, createdAt: createdAt, updatedAt: DateTime.now().toUtc());
 }
 
 class ProductsDatasetApp extends StatelessWidget {
   const ProductsDatasetApp({super.key});
   @override
   Widget build(BuildContext context) => MaterialApp(
-    title: 'دليل المنتجات', debugShowCheckedModeBanner: false,
-    locale: const Locale('ar'), supportedLocales: const [Locale('ar')],
-    localizationsDelegates: const [
-      GlobalMaterialLocalizations.delegate, GlobalWidgetsLocalizations.delegate,
-      GlobalCupertinoLocalizations.delegate,
-    ],
-    theme: ThemeData(
-      useMaterial3: true, colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF596B45)),
-      scaffoldBackgroundColor: const Color(0xFFF7F6F0),
+    title: 'دليل المنتجات', debugShowCheckedModeBanner: false, locale: const Locale('ar'), supportedLocales: const [Locale('ar')],
+    localizationsDelegates: const [GlobalMaterialLocalizations.delegate, GlobalWidgetsLocalizations.delegate, GlobalCupertinoLocalizations.delegate],
+    theme: ThemeData(useMaterial3: true, colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF596B45)), scaffoldBackgroundColor: const Color(0xFFF7F6F0),
       appBarTheme: const AppBarTheme(backgroundColor: Color(0xFFF7F6F0)),
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true, fillColor: Colors.white,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      ),
-    ),
-    home: const CatalogHomePage(),
-  );
+      inputDecorationTheme: InputDecorationTheme(filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none), contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14))),
+    home: const CatalogHomePage());
 }
 
 class CatalogHomePage extends StatefulWidget {
@@ -79,259 +43,156 @@ class CatalogHomePage extends StatefulWidget {
   @override
   State<CatalogHomePage> createState() => _CatalogHomePageState();
 }
-
 class _CatalogHomePageState extends State<CatalogHomePage> {
   final _search = TextEditingController();
   List<ProductRecord> _products = [];
-  String _category = 'الكل';
   bool _archived = false, _loading = true;
-
   @override
-  void initState() {
-    super.initState();
-    _load();
-    _search.addListener(() { if (mounted) setState(() {}); });
-  }
+  void initState() { super.initState(); _load(); _search.addListener(() { if (mounted) setState(() {}); }); }
   @override
   void dispose() { _search.dispose(); super.dispose(); }
-
   Future<void> _load() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(_storageKey);
-      if (raw != null) {
-        _products = (jsonDecode(raw) as List<dynamic>)
-          .map((e) => ProductRecord.fromJson(e as Map<String, dynamic>)).toList();
-      }
-    } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذّر قراءة البيانات المحلية.')));
-    }
+      final prefs = await SharedPreferences.getInstance(), raw = prefs.getString(_storageKey);
+      if (raw != null) _products = (jsonDecode(raw) as List<dynamic>).map((e) => ProductRecord.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (_) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذّرت قراءة البيانات المحلية.'))); }
     if (mounted) setState(() => _loading = false);
   }
   Future<void> _save() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_storageKey, jsonEncode(_products.map((p) => p.toJson()).toList()));
   }
-
   List<ProductRecord> get _visible {
     final q = _search.text.trim().toLowerCase();
-    return _products.where((p) {
-      if (p.archived != _archived || (_category != 'الكل' && p.category != _category)) return false;
-      if (q.isEmpty) return true;
-      return p.nameAr.toLowerCase().contains(q) || p.nameEn.toLowerCase().contains(q) ||
-        p.brand.toLowerCase().contains(q) || p.barcode.toLowerCase().contains(q);
-    }).toList()..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return _products.where((p) => p.archived == _archived && (q.isEmpty || p.nameAr.toLowerCase().contains(q) || p.barcode.toLowerCase().contains(q))).toList()..sort((a,b) => b.updatedAt.compareTo(a.updatedAt));
   }
-
   Future<void> _edit({ProductRecord? old}) async {
     final result = await showDialog<ProductRecord>(context: context, builder: (_) => _ProductDialog(product: old));
     if (result == null || !mounted) return;
-    final duplicate = result.barcode.isNotEmpty && _products.any((p) =>
-      p.id != result.id && p.barcode.isNotEmpty && p.barcode == result.barcode);
-    if (duplicate) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('هذا الباركود مسجّل لمنتج آخر.')));
-      return;
+    if (result.barcode.trim().isNotEmpty && _products.any((p) => p.id != result.id && p.barcode.trim().isNotEmpty && p.barcode.trim() == result.barcode.trim())) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('هذا الباركود مسجّل لمنتج آخر.'))); return;
     }
-    setState(() {
-      final i = _products.indexWhere((p) => p.id == result.id);
-      if (i < 0) { _products.add(result); } else { _products[i] = result; }
-    });
-    await _save();
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(old == null ? 'تم حفظ المنتج على هذا الجهاز.' : 'تم تحديث المنتج.')));
+    final previous = List<ProductRecord>.from(_products);
+    setState(() { final i = _products.indexWhere((p) => p.id == result.id); if (i < 0) { _products.add(result); } else { _products[i] = result; } });
+    try {
+      await _save();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(old == null ? 'تم حفظ المنتج.' : 'تم تحديث المنتج.')));
+    } catch (_) {
+      setState(() => _products = previous);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذّر الحفظ؛ جرّب صورًا أقل أو أصغر.')));
+    }
   }
-
   Future<void> _archive(ProductRecord p) async {
-    setState(() {
-      final i = _products.indexWhere((x) => x.id == p.id);
-      if (i >= 0) _products[i] = p.copyWith(archived: !p.archived);
-    });
-    await _save();
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(p.archived ? 'تمت استعادة المنتج.' : 'تمت أرشفة المنتج.')));
+    setState(() { final i = _products.indexWhere((x) => x.id == p.id); if (i >= 0) _products[i] = p.copyWith(archived: !p.archived); });
+    try { await _save(); } catch (_) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذّر حفظ التغيير.'))); }
   }
-
   Future<void> _backup() async {
     final value = const JsonEncoder.withIndent('  ').convert(_products.map((p) => p.toJson()).toList());
-    await showDialog<void>(context: context, builder: (ctx) => AlertDialog(
-      title: const Text('نسخة احتياطية JSON'),
-      content: SizedBox(width: 560, child: SingleChildScrollView(child: SelectableText(value))),
-      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق'))],
-    ));
+    await showDialog<void>(context: context, builder: (ctx) => AlertDialog(title: const Text('بيانات المنتجات JSON'), content: SizedBox(width: 560, child: SingleChildScrollView(child: SelectableText(value))), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق'))]));
   }
-
   @override
   Widget build(BuildContext context) {
-    final items = _visible;
-    final count = _products.where((p) => p.archived == _archived).length;
+    final items = _visible, count = _products.where((p) => p.archived == _archived).length;
     return Directionality(textDirection: TextDirection.rtl, child: Scaffold(
-      appBar: AppBar(
-        title: const Text('دليل المنتجات'),
-        actions: [
-          IconButton(tooltip: 'نسخة JSON', onPressed: _backup, icon: const Icon(Icons.data_object_rounded)),
-          PopupMenuButton<String>(
-            tooltip: 'خيارات',
-            onSelected: (v) => setState(() { _archived = v == 'archived' ? !_archived : _archived; _category = 'الكل'; }),
-            itemBuilder: (_) => [PopupMenuItem(value: 'archived', child: Text(_archived ? 'عرض المنتجات النشطة' : 'عرض الأرشيف'))],
-            icon: const Icon(Icons.tune_rounded),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _edit(), icon: const Icon(Icons.add_rounded), label: const Text('إضافة منتج'),
-      ),
-      body: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 850),
-        child: _loading ? const Center(child: CircularProgressIndicator()) : ListView(
-          padding: const EdgeInsets.fromLTRB(18, 10, 18, 100),
-          children: [
-            Text('قاعدة بيانات المنتجات', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            const Text('أضف المنتجات الفلسطينية وصنّفها. البيانات تُحفظ محليًا على هذا المتصفح أو الجهاز.', style: TextStyle(fontSize: 16)),
-            const SizedBox(height: 20),
-            TextField(controller: _search, textInputAction: TextInputAction.search, decoration: InputDecoration(
-              hintText: 'ابحث باسم المنتج أو العلامة أو الباركود', prefixIcon: const Icon(Icons.search_rounded),
-              suffixIcon: _search.text.isEmpty ? const Icon(Icons.qr_code_rounded) : IconButton(onPressed: _search.clear, icon: const Icon(Icons.close_rounded)),
-            )),
-            const SizedBox(height: 12),
-            Row(children: [
-              Expanded(child: DropdownButtonFormField<String>(
-                value: _category, isExpanded: true,
-                decoration: const InputDecoration(labelText: 'التصنيف', prefixIcon: Icon(Icons.category_outlined)),
-                items: ['الكل', ..._categories].map((c) => DropdownMenuItem(value: c, child: Text(c, overflow: TextOverflow.ellipsis))).toList(),
-                onChanged: (v) => setState(() => _category = v ?? 'الكل'),
-              )),
-              const SizedBox(width: 10),
-              Container(padding: const EdgeInsets.all(13), decoration: BoxDecoration(color: const Color(0xFFE8EDDF), borderRadius: BorderRadius.circular(14)), child: Text('$count منتج')),
-            ]),
-            const SizedBox(height: 16),
-            if (items.isEmpty) Card(
-              elevation: 0, color: const Color(0xFFE8EDDF),
-              child: Padding(padding: const EdgeInsets.all(24), child: Column(children: [
-                Icon(_archived ? Icons.archive_outlined : Icons.inventory_2_outlined, size: 42, color: const Color(0xFF596B45)),
-                const SizedBox(height: 12),
-                Text(_search.text.isNotEmpty ? 'ما لقينا منتجات مطابقة' : (_archived ? 'الأرشيف فارغ' : 'لسّه ما أضفت منتجات'),
-                  style: Theme.of(context).textTheme.titleLarge, textAlign: TextAlign.center),
-                const SizedBox(height: 8),
-                Text(_search.text.isNotEmpty ? 'جرّب اسمًا آخر أو امسح البحث.' : (_archived ? 'المنتجات المؤرشفة ستظهر هنا.' : 'اضغط «إضافة منتج» لتسجيل أول منتج، وبعدها جرّب البحث والتعديل.'),
-                  textAlign: TextAlign.center),
-                if (!_archived && _search.text.isEmpty) ...[
-                  const SizedBox(height: 14), FilledButton.icon(onPressed: () => _edit(), icon: const Icon(Icons.add), label: const Text('إضافة أول منتج')),
-                ],
-              ])),
-            ) else ...items.map((p) => _ProductTile(product: p, onEdit: () => _edit(old: p), onArchive: () => _archive(p))),
-            const SizedBox(height: 14),
-            Text('الحفظ محلي على هذا المتصفح أو الجهاز؛ المزامنة السحابية لم تُضف بعد.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.black54), textAlign: TextAlign.center),
-          ],
-        ),
-      )),
+      appBar: AppBar(title: const Text('دليل المنتجات'), actions: [
+        IconButton(tooltip: 'عرض JSON', onPressed: _backup, icon: const Icon(Icons.data_object_rounded)),
+        PopupMenuButton<String>(tooltip: 'خيارات', onSelected: (v) => setState(() => _archived = v == 'archived' ? !_archived : _archived),
+          itemBuilder: (_) => [PopupMenuItem(value: 'archived', child: Text(_archived ? 'عرض المنتجات النشطة' : 'عرض الأرشيف'))], icon: const Icon(Icons.tune_rounded)),
+      ]),
+      floatingActionButton: FloatingActionButton.extended(onPressed: () => _edit(), icon: const Icon(Icons.add_rounded), label: const Text('إضافة منتج')),
+      body: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 850), child: _loading ? const Center(child: CircularProgressIndicator()) : ListView(padding: const EdgeInsets.fromLTRB(18,10,18,100), children: [
+        Text('قاعدة بيانات المنتجات', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        const Text('سجّل صورة المنتج واسمه العربي والباركود فقط. الأسعار والحقول الأخرى نضيفها لاحقًا عند الاستيراد.', style: TextStyle(fontSize: 16)),
+        const SizedBox(height: 20),
+        TextField(controller: _search, textInputAction: TextInputAction.search, decoration: InputDecoration(hintText: 'ابحث باسم المنتج أو الباركود', prefixIcon: const Icon(Icons.search_rounded), suffixIcon: _search.text.isEmpty ? const Icon(Icons.qr_code_rounded) : IconButton(onPressed: _search.clear, icon: const Icon(Icons.close_rounded)))),
+        const SizedBox(height: 14),
+        Row(children: [Expanded(child: Text(_archived ? 'الأرشيف' : 'المنتجات', style: Theme.of(context).textTheme.titleMedium)), Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9), decoration: BoxDecoration(color: const Color(0xFFE8EDDF), borderRadius: BorderRadius.circular(14)), child: Text('$count منتج'))]),
+        const SizedBox(height: 12),
+        if (items.isEmpty) Card(elevation: 0, color: const Color(0xFFE8EDDF), child: Padding(padding: const EdgeInsets.all(24), child: Column(children: [
+          const Icon(Icons.inventory_2_outlined, size: 42, color: Color(0xFF596B45)), const SizedBox(height: 12),
+          Text(_search.text.isNotEmpty ? 'ما لقينا منتجات مطابقة' : (_archived ? 'الأرشيف فارغ' : 'لسّه ما أضفت منتجات'), style: Theme.of(context).textTheme.titleLarge, textAlign: TextAlign.center),
+          const SizedBox(height: 8), Text(_search.text.isNotEmpty ? 'جرّب اسمًا آخر أو امسح البحث.' : 'اضغط «إضافة منتج» لتسجيل أول منتج.', textAlign: TextAlign.center),
+          if (!_archived && _search.text.isEmpty) ...[const SizedBox(height: 14), FilledButton.icon(onPressed: () => _edit(), icon: const Icon(Icons.add), label: const Text('إضافة أول منتج'))],
+        ]))) else ...items.map((p) => _ProductTile(product: p, onEdit: () => _edit(old: p), onArchive: () => _archive(p))),
+        const SizedBox(height: 14),
+        Text('الحفظ محلي في هذا المتصفح أو الجهاز؛ لم تتم إضافة المزامنة السحابية بعد.', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.black54), textAlign: TextAlign.center),
+      ]))),
     ));
   }
 }
 
 class _ProductTile extends StatelessWidget {
   const _ProductTile({required this.product, required this.onEdit, required this.onArchive});
-  final ProductRecord product;
-  final VoidCallback onEdit, onArchive;
+  final ProductRecord product; final VoidCallback onEdit, onArchive;
   @override
-  Widget build(BuildContext context) => Card(
-    elevation: 0, color: Colors.white, margin: const EdgeInsets.only(bottom: 10),
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-    child: Padding(padding: const EdgeInsets.all(14), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Container(width: 46, height: 46, decoration: BoxDecoration(color: const Color(0xFFE8EDDF), borderRadius: BorderRadius.circular(14)),
-        child: const Icon(Icons.inventory_2_outlined, color: Color(0xFF596B45))),
-      const SizedBox(width: 12),
+  Widget build(BuildContext context) => Card(elevation: 0, color: Colors.white, margin: const EdgeInsets.only(bottom: 10), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+    child: Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+      _ProductImage(data: product.images.isEmpty ? null : product.images.first), const SizedBox(width: 12),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(product.nameAr, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
-        if (product.nameEn.isNotEmpty) Text(product.nameEn, textDirection: TextDirection.ltr),
-        const SizedBox(height: 6),
-        Wrap(spacing: 6, runSpacing: 6, children: [
-          _Tag(product.category), if (product.brand.isNotEmpty) _Tag(product.brand),
-          if (product.origin.isNotEmpty) _Tag('المنشأ: \${product.origin}'),
-        ]),
-        if (product.barcode.isNotEmpty) ...[const SizedBox(height: 7), Text('الباركود: \${product.barcode}', textDirection: TextDirection.ltr)],
-        if (product.description.isNotEmpty) ...[const SizedBox(height: 5), Text(product.description)],
+        if (product.barcode.isNotEmpty) ...[const SizedBox(height: 5), Text('الباركود: \${product.barcode}', textDirection: TextDirection.ltr)],
+        if (product.images.length > 1) ...[const SizedBox(height: 5), Text('عدد الصور: \${product.images.length}')],
       ])),
-      PopupMenuButton<String>(
-        tooltip: 'إجراءات المنتج',
-        onSelected: (v) { if (v == 'edit') onEdit(); if (v == 'archive') onArchive(); },
-        itemBuilder: (_) => [
-          const PopupMenuItem(value: 'edit', child: Text('تعديل')),
-          PopupMenuItem(value: 'archive', child: Text(product.archived ? 'استعادة من الأرشيف' : 'أرشفة')),
-        ],
-      ),
-    ])),
-  );
+      PopupMenuButton<String>(tooltip: 'إجراءات المنتج', onSelected: (v) { if (v == 'edit') onEdit(); if (v == 'archive') onArchive(); },
+        itemBuilder: (_) => [const PopupMenuItem(value: 'edit', child: Text('تعديل')), PopupMenuItem(value: 'archive', child: Text(product.archived ? 'استعادة' : 'أرشفة'))]),
+    ])));
 }
 
-class _Tag extends StatelessWidget {
-  const _Tag(this.label);
-  final String label;
+class _ProductImage extends StatelessWidget {
+  const _ProductImage({this.data}); final String? data;
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-    decoration: BoxDecoration(color: const Color(0xFFF0F1E9), borderRadius: BorderRadius.circular(20)),
-    child: Text(label, style: const TextStyle(fontSize: 12)),
-  );
+  Widget build(BuildContext context) {
+    final bytes = data == null ? null : base64Decode(data!);
+    return ClipRRect(borderRadius: BorderRadius.circular(12), child: Container(width: 68, height: 68, color: const Color(0xFFE8EDDF),
+      child: bytes == null ? const Icon(Icons.image_outlined, size: 30, color: Color(0xFF596B45)) : Image.memory(Uint8List.fromList(bytes), fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined))));
+  }
 }
 
 class _ProductDialog extends StatefulWidget {
-  const _ProductDialog({this.product});
-  final ProductRecord? product;
+  const _ProductDialog({this.product}); final ProductRecord? product;
   @override
   State<_ProductDialog> createState() => _ProductDialogState();
 }
-
 class _ProductDialogState extends State<_ProductDialog> {
-  final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _ar, _en, _brand, _barcode, _origin, _description;
-  late String _category;
+  final _formKey = GlobalKey<FormState>(); final _picker = ImagePicker();
+  late final TextEditingController _name, _barcode;
+  late List<String> _images; bool _picking = false;
   @override
-  void initState() {
-    super.initState();
-    final p = widget.product;
-    _ar = TextEditingController(text: p?.nameAr ?? '');
-    _en = TextEditingController(text: p?.nameEn ?? '');
-    _brand = TextEditingController(text: p?.brand ?? '');
-    _barcode = TextEditingController(text: p?.barcode ?? '');
-    _origin = TextEditingController(text: p?.origin ?? '');
-    _description = TextEditingController(text: p?.description ?? '');
-    _category = _categories.contains(p?.category) ? p!.category : _categories.last;
+  void initState() { super.initState(); _name = TextEditingController(text: widget.product?.nameAr ?? ''); _barcode = TextEditingController(text: widget.product?.barcode ?? ''); _images = List<String>.from(widget.product?.images ?? const []); }
+  @override
+  void dispose() { _name.dispose(); _barcode.dispose(); super.dispose(); }
+  Future<void> _pickImages() async {
+    setState(() => _picking = true);
+    try {
+      final files = await _picker.pickMultiImage(imageQuality: 65, maxWidth: 1200, maxHeight: 1200);
+      for (final file in files) { final bytes = await file.readAsBytes(); if (bytes.isNotEmpty) _images.add(base64Encode(bytes)); }
+      if (mounted) setState(() {});
+    } catch (_) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذّر اختيار الصور. جرّب صور JPG أو PNG.'))); }
+    finally { if (mounted) setState(() => _picking = false); }
   }
   @override
-  void dispose() { _ar.dispose(); _en.dispose(); _brand.dispose(); _barcode.dispose(); _origin.dispose(); _description.dispose(); super.dispose(); }
-
-  @override
   Widget build(BuildContext context) => Directionality(textDirection: TextDirection.rtl, child: AlertDialog(
-    title: Text(widget.product == null ? 'إضافة منتج جديد' : 'تعديل المنتج'),
-    content: SizedBox(width: 520, child: SingleChildScrollView(child: Form(key: _formKey, child: Column(mainAxisSize: MainAxisSize.min, children: [
-      TextFormField(controller: _ar, autofocus: true, decoration: const InputDecoration(labelText: 'اسم المنتج بالعربية *'),
-        validator: (v) => v == null || v.trim().isEmpty ? 'اسم المنتج مطلوب' : null),
+    title: Text(widget.product == null ? 'إضافة منتج' : 'تعديل المنتج'),
+    content: SizedBox(width: 520, child: SingleChildScrollView(child: Form(key: _formKey, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      OutlinedButton.icon(onPressed: _picking ? null : _pickImages, icon: const Icon(Icons.add_photo_alternate_outlined), label: Text(_picking ? 'جارٍ تجهيز الصور...' : (_images.isEmpty ? 'إضافة صورة أو عدة صور' : 'إضافة صور أخرى (\${_images.length})'))),
+      if (_images.isNotEmpty) ...[const SizedBox(height: 12), SizedBox(height: 92, child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: _images.length, separatorBuilder: (_, __) => const SizedBox(width: 8), itemBuilder: (context, i) => Stack(children: [
+        ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.memory(base64Decode(_images[i]), width: 88, height: 88, fit: BoxFit.cover)),
+        Positioned(top: 2, left: 2, child: InkWell(onTap: () => setState(() => _images.removeAt(i)), child: Container(decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle), padding: const EdgeInsets.all(3), child: const Icon(Icons.close, size: 16, color: Colors.white)))),
+      ])))],
+      const SizedBox(height: 16),
+      TextFormField(controller: _name, autofocus: true, decoration: const InputDecoration(labelText: 'اسم المنتج بالعربية *', hintText: 'مثال: زيت زيتون فلسطيني'), validator: (v) => v == null || v.trim().isEmpty ? 'اسم المنتج مطلوب' : null),
       const SizedBox(height: 12),
-      TextFormField(controller: _en, textDirection: TextDirection.ltr, decoration: const InputDecoration(labelText: 'الاسم بالإنجليزية (اختياري)')),
-      const SizedBox(height: 12),
-      DropdownButtonFormField<String>(value: _category, isExpanded: true, decoration: const InputDecoration(labelText: 'التصنيف *'),
-        items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-        onChanged: (v) => setState(() => _category = v ?? _categories.last)),
-      const SizedBox(height: 12),
-      TextFormField(controller: _brand, decoration: const InputDecoration(labelText: 'العلامة التجارية')),
-      const SizedBox(height: 12),
-      TextFormField(controller: _barcode, keyboardType: TextInputType.text, textDirection: TextDirection.ltr,
-        decoration: const InputDecoration(labelText: 'الباركود (اختياري)')),
-      const SizedBox(height: 12),
-      TextFormField(controller: _origin, decoration: const InputDecoration(labelText: 'بلد المنشأ (اختياري)')),
-      const SizedBox(height: 12),
-      TextFormField(controller: _description, maxLines: 2, decoration: const InputDecoration(labelText: 'ملاحظات أو وصف (اختياري)')),
+      TextFormField(controller: _barcode, textDirection: TextDirection.ltr, decoration: const InputDecoration(labelText: 'الباركود (اختياري)', hintText: 'أدخل الرقم كما هو على العبوة')),
+      const SizedBox(height: 8),
+      Text('لا توجد حقول أسعار في هذه المرحلة؛ سنضيفها ضمن الاستيراد لاحقًا.', style: Theme.of(context).textTheme.bodySmall),
     ])))),
     actions: [
       TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
-      FilledButton.icon(onPressed: () {
+      FilledButton.icon(onPressed: _picking ? null : () {
         if (!_formKey.currentState!.validate()) return;
         final now = DateTime.now().toUtc(), old = widget.product;
-        Navigator.pop(context, ProductRecord(
-          id: old?.id ?? _uuid.v4(), nameAr: _ar.text.trim(), nameEn: _en.text.trim(),
-          category: _category, brand: _brand.text.trim(), barcode: _barcode.text.trim(),
-          origin: _origin.text.trim(), description: _description.text.trim(),
-          archived: old?.archived ?? false, createdAt: old?.createdAt ?? now, updatedAt: now,
-        ));
+        Navigator.pop(context, ProductRecord(id: old?.id ?? _uuid.v4(), nameAr: _name.text.trim(), barcode: _barcode.text.trim(), images: List<String>.from(_images), archived: old?.archived ?? false, createdAt: old?.createdAt ?? now, updatedAt: now));
       }, icon: const Icon(Icons.save_outlined), label: const Text('حفظ المنتج')),
     ],
   ));
