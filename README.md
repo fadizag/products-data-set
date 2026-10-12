@@ -13,7 +13,7 @@ A Flutter application for building a structured, reusable product dataset, start
 
 ## Repository status
 
-This repository is being bootstrapped. The specification and initial structure are being added before feature implementation. Build and test results must be recorded only after actually running them.
+The initial specification and application shell are committed. The current UI is only a starter screen: product persistence, real search, categories, import/export, and cloud sync are not implemented yet. Platform folders are generated during CI; for local development, run `flutter create --platforms=android,web,windows --project-name=products_dataset .` once, then `flutter pub get`.
 
 ## Planned MVP
 
@@ -27,11 +27,11 @@ This repository is being bootstrapped. The specification and initial structure a
 
 ## Documentation
 
-- [`docs/MVP_SPEC.md`](docs/MVP_SPEC.md) — product scope and requirements.
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — proposed Flutter architecture and folder layout.
-- [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md) — entities and data rules.
-- [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md) — verification strategy.
+- [MVP specification](docs/MVP_SPEC.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Data model](docs/DATA_MODEL.md)
+- [Test plan](docs/TEST_PLAN.md)
 
-## Development status
+## Verification status
 
-No claim of successful Flutter builds, generated database code, cloud connectivity, or deployment is made until those steps are executed and verified.
+CI workflow has been added, but it has not yet been observed running successfully. No claim of successful Flutter builds, generated database code, cloud connectivity, or deployment is made until those steps are executed and verified.
