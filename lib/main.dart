@@ -177,17 +177,36 @@ class _ProductDialogState extends State<_ProductDialog> {
   Future<void> _pickImages() async {
     setState(() => _picking = true);
     try {
-      final files = await _picker.pickMultiImage(imageQuality: 65, maxWidth: 1200, maxHeight: 1200);
+      // Keep product details legible while reducing storage size.
+      final files = await _picker.pickMultiImage(imageQuality: 85, maxWidth: 1600, maxHeight: 1600);
       for (final file in files) { final bytes = await file.readAsBytes(); if (bytes.isNotEmpty) _images.add(base64Encode(bytes)); }
       if (mounted) setState(() {});
     } catch (_) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذّر اختيار الصور. جرّب صور JPG أو PNG.'))); }
     finally { if (mounted) setState(() => _picking = false); }
   }
+  Future<void> _takePhoto() async {
+    setState(() => _picking = true);
+    try {
+      final file = await _picker.pickImage(source: ImageSource.camera, imageQuality: 85, maxWidth: 1600, maxHeight: 1600);
+      if (file != null) {
+        final bytes = await file.readAsBytes();
+        if (bytes.isNotEmpty) _images.add(base64Encode(bytes));
+        if (mounted) setState(() {});
+      }
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذّر فتح الكاميرا. تأكد من صلاحية الكاميرا وجرب مرة أخرى.')));
+    } finally { if (mounted) setState(() => _picking = false); }
+  }
   @override
   Widget build(BuildContext context) => Directionality(textDirection: TextDirection.rtl, child: AlertDialog(
     title: Text(widget.product == null ? 'إضافة منتج' : 'تعديل المنتج'),
     content: SizedBox(width: 520, child: SingleChildScrollView(child: Form(key: _formKey, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      OutlinedButton.icon(onPressed: _picking ? null : _pickImages, icon: const Icon(Icons.add_photo_alternate_outlined), label: Text(_picking ? 'جارٍ تجهيز الصور...' : (_images.isEmpty ? 'إضافة صورة أو عدة صور' : 'إضافة صور أخرى (${_images.length})'))),
+      Row(children: [
+        Expanded(child: OutlinedButton.icon(onPressed: _picking ? null : _takePhoto, icon: const Icon(Icons.photo_camera_outlined), label: const Text('تصوير بالكاميرا'))),
+        const SizedBox(width: 8),
+        Expanded(child: OutlinedButton.icon(onPressed: _picking ? null : _pickImages, icon: const Icon(Icons.add_photo_alternate_outlined), label: const Text('من المعرض'))),
+      ]),
+      if (_picking) const Padding(padding: EdgeInsets.only(top: 8), child: LinearProgressIndicator()),
       if (_images.isNotEmpty) ...[const SizedBox(height: 12), SizedBox(height: 92, child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: _images.length, separatorBuilder: (_, __) => const SizedBox(width: 8), itemBuilder: (context, i) => Stack(children: [
         ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.memory(base64Decode(_images[i]), width: 88, height: 88, fit: BoxFit.cover)),
         Positioned(top: 2, left: 2, child: InkWell(onTap: () => setState(() => _images.removeAt(i)), child: Container(decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle), padding: const EdgeInsets.all(3), child: const Icon(Icons.close, size: 16, color: Colors.white)))),
